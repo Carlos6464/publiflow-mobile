@@ -1,9 +1,9 @@
-// src/services/api.ts
+// services/api.ts
 import axios from 'axios';
 
 const api = axios.create({
-  // Substitua pelo IP da sua máquina se estiver testando em dispositivo físico
-  baseURL: 'http://localhost:3333',
+  // Mudamos de localhost para o IP da sua máquina (baseado no seu log)
+  baseURL: 'http://192.168.1.68:3333/api',
 });
 
 export default api;

@@ -1,56 +1,94 @@
-// src/contexts/AuthContext.tsx
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
+// Tipagem baseada na resposta da sua API
+interface APIUser {
+  nomeCompleto: string;
+  email: string;
+  telefone: string;
+  papelUsuarioID: number;
+}
+
+// Nossa interface interna extendida com a 'role' para facilitar a lógica no front
+interface User extends APIUser {
+  role: 'teacher' | 'student';
+}
+
 interface AuthContextData {
   signed: boolean;
-  user: object | null;
-  signIn(email: string, pass: string, type: 'student' | 'teacher'): Promise<void>;
-  signOut(): void;
+  user: User | null;
   loading: boolean;
+  signIn: (email: string, senha: string, userType: 'student' | 'teacher') => Promise<void>;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<object | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStorageData() {
-      const storageUser = await AsyncStorage.getItem('@PubliFlow:user');
-      const storageToken = await AsyncStorage.getItem('@PubliFlow:token');
+      const [storedUser, storedToken] = await AsyncStorage.multiGet([
+        '@PubliFlow:user',
+        '@PubliFlow:token',
+      ]);
 
-      if (storageUser && storageToken) {
-        api.defaults.headers.Authorization = `Bearer ${storageToken}`;
-        setUser(JSON.parse(storageUser));
+      if (storedUser[1] && storedToken[1]) {
+        api.defaults.headers.Authorization = `Bearer ${storedToken[1]}`;
+        setUser(JSON.parse(storedUser[1]));
       }
       setLoading(false);
     }
+
     loadStorageData();
   }, []);
 
-  async function signIn(email: string, password: string, type: string) {
-    const response = await api.post('/login', { email, password, type });
-    const { token, user: userData } = response.data;
+  async function signIn(email: string, senha: string) {
+    try {
+      const response = await api.post('/login', { email, senha });
 
-    setUser(userData);
-    api.defaults.headers.Authorization = `Bearer ${token}`;
+      const { user: apiUser, token } = response.data;
 
-    await AsyncStorage.setItem('@PubliFlow:user', JSON.stringify(userData));
-    await AsyncStorage.setItem('@PubliFlow:token', token);
+      console.log(response);
+
+      // LÓGICA DE MAPEAMENTO: Ajuste o ID conforme seu banco de dados
+      // Aqui assumimos: 1 = Professor, Qualquer outro = Aluno
+      const role = apiUser.papelUsuarioID === 2 ? 'teacher' : 'student';
+
+      const userWithRole: User = {
+        ...apiUser,
+        role,
+      };
+
+      setUser(userWithRole);
+
+      api.defaults.headers.Authorization = `Bearer ${token}`;
+
+      await AsyncStorage.multiSet([
+        ['@PubliFlow:user', JSON.stringify(userWithRole)],
+        ['@PubliFlow:token', token],
+      ]);
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
   }
 
-  function signOut() {
-    AsyncStorage.clear().then(() => setUser(null));
+  async function signOut() {
+    await AsyncStorage.clear();
+    setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ signed: !!user, user, signIn, signOut, loading }}>
+    <AuthContext.Provider value={{ signed: !!user, user, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}
