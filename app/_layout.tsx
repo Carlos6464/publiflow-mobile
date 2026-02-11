@@ -1,5 +1,6 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import Toast from 'react-native-toast-message';
 import { useEffect } from "react";
 import '../global.css';
 
@@ -35,6 +36,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <RootLayoutNav />
+      <Toast />
     </AuthProvider>
   );
 }

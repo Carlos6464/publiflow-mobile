@@ -16,16 +16,17 @@ export default function Feed() {
     const [hasMore, setHasMore] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    // Função ajustada para a nova estrutura do service
+    // Pega a URL do .env (ou usa o IP fixo como fallback de segurança)
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.68:3333';
+
     async function fetchPosts(pageNumber = 1, shouldRefresh = false) {
         if (loading) return;
         setLoading(true);
 
         try {
-            // Chamada atualizada (agora temos posts e meta)
             const { posts: newPosts, meta } = await postService.getAll({
                 page: pageNumber,
-                limit: 6, // Ajustado para 6 conforme seu exemplo
+                limit: 6,
                 q: searchText
             });
 
@@ -35,7 +36,6 @@ export default function Feed() {
                 setPosts(prev => [...prev, ...newPosts]);
             }
 
-            // Lógica Perfeita de Scroll Infinito usando o meta do backend
             if (meta.currentPage >= meta.totalPages) {
                 setHasMore(false);
             } else {
@@ -49,8 +49,6 @@ export default function Feed() {
             setRefreshing(false);
         }
     }
-
-    // --- O RESTANTE DO CÓDIGO PERMANECE IGUAL ---
 
     useEffect(() => {
         setPage(1);
@@ -81,9 +79,11 @@ export default function Feed() {
             {item.caminhoImagem ? (
                 <Image
                     source={{
+                        // AQUI ESTÁ A CORREÇÃO:
+                        // Usa a variável 'apiUrl' definida lá em cima + '/uploads/'
                         uri: item.caminhoImagem.startsWith('http')
                             ? item.caminhoImagem
-                            : `http://192.168.1.68:3333/uploads/${item.caminhoImagem}`
+                            : `${apiUrl}/uploads/${item.caminhoImagem}`
                     }}
                     className="w-full h-48 bg-gray-800"
                     resizeMode="cover"
@@ -110,7 +110,6 @@ export default function Feed() {
 
     return (
         <View className="flex-1 bg-background-dark">
-            {/* HEADER NEON */}
             <View className="pt-14 pb-6 px-6 flex-row justify-between items-center bg-surface border-b-2 border-primary rounded-b-3xl z-10 shadow-lg shadow-black">
                 <View>
                     <Text className="text-textGray text-xs uppercase font-bold tracking-widest">Bem-vindo,</Text>
@@ -121,7 +120,6 @@ export default function Feed() {
                 </TouchableOpacity>
             </View>
 
-            {/* BUSCA */}
             <View className="px-6 mt-6 mb-2">
                 <View className="flex-row items-center bg-surface h-12 rounded-xl px-4 border border-gray-700">
                     <Ionicons name="search" size={20} color="#8C8C8C" />
@@ -136,7 +134,6 @@ export default function Feed() {
                 </View>
             </View>
 
-            {/* LISTA */}
             <FlatList
                 data={posts}
                 keyExtractor={(item) => String(item.id)}

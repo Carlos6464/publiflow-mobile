@@ -4,6 +4,7 @@ import api from '../services/api';
 
 // Tipagem baseada na resposta da sua API
 interface APIUser {
+  id?: number;
   nomeCompleto: string;
   email: string;
   telefone: string;

@@ -11,6 +11,8 @@ export default function PostDetails() {
     const [post, setPost] = useState<Post | null>(null);
     const [loading, setLoading] = useState(true);
 
+     const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.68:3333';
+
     useEffect(() => {
         async function loadPost() {
             try {
@@ -61,7 +63,13 @@ export default function PostDetails() {
             {/* Imagem de Capa */}
             {post.caminhoImagem ? (
                 <Image
-                    source={{ uri: post.caminhoImagem.startsWith('http') ? post.caminhoImagem : `http://192.168.1.68:3333/uploads/${post.caminhoImagem}` }}
+                   source={{
+                        // AQUI ESTÁ A CORREÇÃO:
+                        // Usa a variável 'apiUrl' definida lá em cima + '/uploads/'
+                        uri: post.caminhoImagem.startsWith('http')
+                            ? post.caminhoImagem
+                            : `${apiUrl}/uploads/${post.caminhoImagem}`
+                    }}
                     className="w-full h-80 bg-gray-900"
                     resizeMode="cover"
                 />
