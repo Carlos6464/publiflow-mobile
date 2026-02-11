@@ -16,18 +16,22 @@ export default function Feed() {
     const [hasMore, setHasMore] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    // Pega a URL do .env (ou usa o IP fixo como fallback de segurança)
+    // Variável de ambiente
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.68:3333';
 
-    async function fetchPosts(pageNumber = 1, shouldRefresh = false) {
-        if (loading) return;
+    // Função principal de busca
+    async function fetchPosts(pageNumber: number, shouldRefresh = false, query = '') {
+        // Se for paginação (scroll infinito) e já estiver carregando, bloqueia.
+        // Se for refresh ou busca nova, PERMITE passar (para cancelar o visual anterior)
+        if (loading && !shouldRefresh) return;
+        
         setLoading(true);
 
         try {
             const { posts: newPosts, meta } = await postService.getAll({
                 page: pageNumber,
                 limit: 6,
-                q: searchText
+                q: query // Usa a query passada por parâmetro para garantir o valor atual
             });
 
             if (shouldRefresh) {
@@ -36,6 +40,7 @@ export default function Feed() {
                 setPosts(prev => [...prev, ...newPosts]);
             }
 
+            // Verifica se tem mais páginas baseado no meta
             if (meta.currentPage >= meta.totalPages) {
                 setHasMore(false);
             } else {
@@ -50,24 +55,35 @@ export default function Feed() {
         }
     }
 
+    // 1. EFEITO DE BUSCA COM DEBOUNCE (Espera o usuário parar de digitar)
     useEffect(() => {
-        setPage(1);
-        setHasMore(true);
-        fetchPosts(1, true);
+        // Cria um timer de 600ms
+        const delayDebounceFn = setTimeout(() => {
+            setPage(1);
+            setHasMore(true);
+            // Chama a busca passando o texto atual
+            fetchPosts(1, true, searchText); 
+        }, 600);
+
+        // Limpa o timer se o usuário digitar de novo antes dos 600ms
+        return () => clearTimeout(delayDebounceFn);
     }, [searchText]);
 
+    // 2. REFRESH (Arrastar pra baixo)
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         setPage(1);
         setHasMore(true);
-        fetchPosts(1, true);
+        fetchPosts(1, true, searchText);
     }, [searchText]);
 
+    // 3. LOAD MORE (Scroll Infinito)
     const loadMore = () => {
+        // Aqui mantemos a proteção estrita: só carrega se não estiver carregando e tiver mais itens
         if (hasMore && !loading) {
             const nextPage = page + 1;
             setPage(nextPage);
-            fetchPosts(nextPage);
+            fetchPosts(nextPage, false, searchText);
         }
     };
 
@@ -79,8 +95,6 @@ export default function Feed() {
             {item.caminhoImagem ? (
                 <Image
                     source={{
-                        // AQUI ESTÁ A CORREÇÃO:
-                        // Usa a variável 'apiUrl' definida lá em cima + '/uploads/'
                         uri: item.caminhoImagem.startsWith('http')
                             ? item.caminhoImagem
                             : `${apiUrl}/uploads/${item.caminhoImagem}`
@@ -131,6 +145,12 @@ export default function Feed() {
                         onChangeText={setSearchText}
                         returnKeyType="search"
                     />
+                    {/* Botão para limpar busca */}
+                    {searchText.length > 0 && (
+                         <TouchableOpacity onPress={() => setSearchText('')}>
+                            <Ionicons name="close-circle" size={20} color="#8C8C8C" />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
 
@@ -146,6 +166,7 @@ export default function Feed() {
                 onEndReached={loadMore}
                 onEndReachedThreshold={0.1}
                 ListFooterComponent={
+                    // Mostra loading apenas se estiver carregando E NÃO for um refresh (puxar pra baixo)
                     loading && !refreshing ? <ActivityIndicator size="small" color="#f31b58" className="mt-4" /> : null
                 }
                 ListEmptyComponent={

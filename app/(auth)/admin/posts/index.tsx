@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal, RefreshControl } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router'; // <--- Importante: useFocusEffect
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 
@@ -10,13 +10,15 @@ export default function PostsAdminList() {
     const router = useRouter();
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false); // <--- Estado para o Pull to Refresh
 
     // Estado para controlar o Modal de Exclusão
     const [postToDelete, setPostToDelete] = useState<number | null>(null);
 
-    // Carregar posts
-    const fetchPosts = useCallback(async () => {
-        setLoading(true);
+    // Carregar posts (aceita parâmetro para saber se é refresh ou load normal)
+    const fetchPosts = useCallback(async (isRefresh = false) => {
+        if (!isRefresh) setLoading(true); // Só mostra o loading grande se não for refresh
+        
         try {
             const data = await postService.getAllAdmin();
             setPosts(data);
@@ -28,12 +30,23 @@ export default function PostsAdminList() {
             });
         } finally {
             setLoading(false);
+            setRefreshing(false); // Para o spinner do refresh
         }
     }, []);
 
-    useEffect(() => {
-        fetchPosts();
-    }, []);
+    // 1. ATUALIZAÇÃO AUTOMÁTICA AO VOLTAR
+    // Roda sempre que a tela ganha foco (entra na tela ou volta do formulário)
+    useFocusEffect(
+        useCallback(() => {
+            fetchPosts();
+        }, [fetchPosts])
+    );
+
+    // 2. AÇÃO DE PUXAR PARA BAIXO
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchPosts(true); // Passa true para indicar que é um refresh
+    }, [fetchPosts]);
 
     // Abre o modal perguntando qual ID deletar
     const confirmDelete = (id: number) => {
@@ -105,7 +118,7 @@ export default function PostsAdminList() {
 
     return (
         <View className="flex-1 bg-background-dark p-4">
-            {loading ? (
+            {loading && !refreshing ? (
                 <ActivityIndicator size="large" color="#f31b58" className="mt-10" />
             ) : (
                 <FlatList
@@ -115,6 +128,15 @@ export default function PostsAdminList() {
                     contentContainerStyle={{ paddingBottom: 80 }}
                     ListEmptyComponent={
                         <Text className="text-textGray text-center mt-10">Nenhuma postagem cadastrada.</Text>
+                    }
+                    // PROPRIEDADES DO REFRESH CONTROL
+                    refreshControl={
+                        <RefreshControl 
+                            refreshing={refreshing} 
+                            onRefresh={onRefresh} 
+                            tintColor="#f31b58" // iOS
+                            colors={["#f31b58"]} // Android
+                        />
                     }
                 />
             )}

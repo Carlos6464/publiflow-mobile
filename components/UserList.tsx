@@ -1,24 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal, RefreshControl } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { userService, User } from '../services/userService';
 
 interface UserListProps {
-    roleId: number; // 1 = Aluno, 2 = Professor
-    title: string;  // "Alunos" ou "Professores"
-    baseRoute: string; // "/(auth)/admin/students" ou "/(auth)/admin/teachers"
+    roleId: number;
+    title: string;
+    baseRoute: string;
 }
 
 export default function UserList({ roleId, title, baseRoute }: UserListProps) {
     const router = useRouter();
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false); // <--- Estado para o Pull to Refresh
     const [userToDelete, setUserToDelete] = useState<number | null>(null);
 
-    const fetchUsers = useCallback(async () => {
-        setLoading(true);
+    // Função de busca (aceita parâmetro para saber se é refresh ou load normal)
+    const fetchUsers = useCallback(async (isRefresh = false) => {
+        if (!isRefresh) setLoading(true); // Só mostra loading grande se não for refresh
+        
         try {
             const data = await userService.getByType(roleId);
             setUsers(data);
@@ -26,11 +29,22 @@ export default function UserList({ roleId, title, baseRoute }: UserListProps) {
             Toast.show({ type: 'error', text1: 'Erro', text2: `Não foi possível carregar os ${title.toLowerCase()}.` });
         } finally {
             setLoading(false);
+            setRefreshing(false); // Para o spinner do refresh
         }
     }, [roleId, title]);
 
-    useEffect(() => {
-        fetchUsers();
+    // 1. ATUALIZAÇÃO AUTOMÁTICA AO VOLTAR
+    // Roda sempre que a tela ganha foco (entra na tela ou volta do formulário)
+    useFocusEffect(
+        useCallback(() => {
+            fetchUsers();
+        }, [fetchUsers])
+    );
+
+    // 2. AÇÃO DE PUXAR PARA BAIXO
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchUsers(true); // Passa true para indicar que é um refresh
     }, [fetchUsers]);
 
     const handleDelete = async () => {
@@ -80,7 +94,7 @@ export default function UserList({ roleId, title, baseRoute }: UserListProps) {
 
     return (
         <View className="flex-1 bg-background-dark p-4">
-            {loading ? (
+            {loading && !refreshing ? (
                 <ActivityIndicator size="large" color="#f31b58" className="mt-10" />
             ) : (
                 <FlatList
@@ -89,6 +103,15 @@ export default function UserList({ roleId, title, baseRoute }: UserListProps) {
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingBottom: 80 }}
                     ListEmptyComponent={<Text className="text-textGray text-center mt-10">Nenhum registro encontrado.</Text>}
+                    // PROPRIEDADES DO REFRESH CONTROL
+                    refreshControl={
+                        <RefreshControl 
+                            refreshing={refreshing} 
+                            onRefresh={onRefresh} 
+                            tintColor="#f31b58" // Cor do spinner no iOS
+                            colors={["#f31b58"]} // Cor do spinner no Android
+                        />
+                    }
                 />
             )}
 
