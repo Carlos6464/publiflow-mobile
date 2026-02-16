@@ -92,11 +92,11 @@ export default function Login() {
         <View className="w-full h-[1px] bg-surface/50 my-8" />
 
         {/* Footer */}
-        <View className="items-center">
+        {/* <View className="items-center">
           <Text className="text-textGray">
             Ainda não possui acesso? <Text className="text-primary font-bold">Cadastre-se</Text>
           </Text>
-        </View>
+        </View> */}
       </View>
     </ScrollView>
   );
